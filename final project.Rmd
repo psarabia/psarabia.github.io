@@ -1,0 +1,303 @@
+---
+title: "Family Income and Expenditure in the Philippines"
+author: "Patrik Sarabia"
+date: "May 18, 2018"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Introduction
+This is an EDA for Family Income and Expenditure in the Philippines. In order to use this data set, I wanted to see if it is possible to predict the total income of a family in the Philippines based on their expenditures. 
+
+The data comes from the following url: 
+https://www.kaggle.com/grosvenpaul/family-income-and-expenditure
+
+All of the analysis done with this data set is used in R. Before we begin, PHP is the currency for the Philippines and stands for Philippine peso. 
+
+##Preparation
+First, load the relevant libraries that will be needed in the analysis.
+```{r, message=FALSE,warning=FALSE}
+#Load relevant libraries
+library(tidyverse)
+library(tibble)
+library(broom)
+```
+Next, read the data using the read_csv function 
+```{r,message=FALSE}
+##Read the data
+data <- read_csv("Family Income and Expenditure.csv/Family Income and Expenditure.csv")
+
+data
+```
+As you can see, this data set has a lot of column attributes, 60 columns, to be exact. Fortunately, not all of them are needed to perform the analysis. Using the select function will take out the irrelevant columns for the analysis. Using the colnames function allows to replace the column names so that it is easier to access the column names. 
+
+```{r}
+##Select only the relevant columns
+new_data <- data %>% 
+  select(1:2, 6:24, "Total Number of Family members") 
+
+##Rename the column names for the data
+colnames(new_data) <- c("total_income", "region", "bread_expenses", "rice_expenses", "meat_expenses", "seafood_expenses", "fruit_expenses", "vegetable_expenses", "restaurant_expenses", "alcohol_expenses", "tobacco_expenses", "clothing_expenses", "housing_expenses", "house_value", "medical_expenses", "transportation_expenses", "communication_expenses", "education_expenses", "miscalleanous_expenses", "special_expenses", "farming_expenses", "family_members")
+  
+##Join miscallenaous_expenses and special_expenses and remove them
+new_data <- new_data %>% 
+  mutate(miscalleanous_expenses = new_data$miscalleanous_expenses + new_data$special_expenses) %>%
+  select(-special_expenses)
+
+##Since we will be using a log transform for the plots, just add 1 to values with zeroes
+new_data$bread_expenses[new_data$bread_expenses == 0] <- 1
+new_data$rice_expenses[new_data$rice_expenses == 0] <- 1
+new_data$meat_expenses[new_data$meat_expenses == 0] <- 1
+new_data$seafood_expenses[new_data$seafood_expenses == 0] <- 1
+new_data$fruit_expenses[new_data$fruit_expenses == 0] <- 1
+new_data$vegetable_expenses[new_data$vegetable_expenses == 0] <- 1
+new_data$restaurant_expenses[new_data$restaurant_expenses == 0] <- 1
+new_data$alcohol_expenses[new_data$alcohol_expenses == 0] <- 1
+new_data$tobacco_expenses[new_data$tobacco_expenses == 0] <- 1
+new_data$clothing_expenses[new_data$clothing_expenses == 0] <- 1
+new_data$housing_expenses[new_data$housing_expenses == 0] <- 1
+new_data$house_value[new_data$house_value == 0] <- 1
+new_data$medical_expenses[new_data$medical_expenses == 0] <- 1
+new_data$transportation_expenses[new_data$transportation_expenses == 0] <- 1
+new_data$communication_expenses[new_data$communication_expenses == 0] <- 1
+new_data$education_expenses[new_data$education_expenses == 0] <- 1
+new_data$miscalleanous_expenses[new_data$miscalleanous_expenses == 0] <- 1
+new_data$farming_expenses[new_data$farming_expenses == 0] <- 1
+
+
+new_data
+```
+
+The data set above will be the one that is used to perform the analysis.  
+
+##Visualization
+
+From Wikipedia, the Philippines is the 34th largest economy of the world. With that being said, let us find the average household income, the average expenditure and the average savings for a family in the Philippines. 
+
+```{r}
+new_data %>% 
+  mutate(total_expenses = bread_expenses + rice_expenses + meat_expenses + seafood_expenses + fruit_expenses + vegetable_expenses + restaurant_expenses + alcohol_expenses + tobacco_expenses + clothing_expenses + housing_expenses + house_value + medical_expenses + transportation_expenses + education_expenses + miscalleanous_expenses + farming_expenses) %>% 
+  mutate(savings = total_income - total_expenses) %>%
+  summarize(mean_income = mean(total_income), mean_expenditure = mean(total_expenses), mean_savings = mean(savings))
+```
+From the data, the annual average household income, average expenditure, and average savings for a family in the Philippines is 247555.6 PHP, 213071.2 PHP, and 34484.41 PHP, respectively. In dollars, these figures translate to $4762.97, $4076.45, and $659.69, respectively.  
+
+Although these numbers give us the average income, expenses, and savings, it is better to look at the numbers for each region because some regions are rich like the NCR region, while some regions are poor like the ARMM region. This way, we can get a better look at the average income, expenses, and savings for a family in the Philippines. The code here is similar to the one above, except we make a call to group_by()
+
+```{r}
+filtered_data <- new_data %>% 
+  group_by(region) %>%
+  mutate(total_expenses = bread_expenses + rice_expenses + meat_expenses + seafood_expenses + fruit_expenses + vegetable_expenses + restaurant_expenses + alcohol_expenses + tobacco_expenses + clothing_expenses + housing_expenses + house_value + medical_expenses + transportation_expenses + education_expenses + miscalleanous_expenses + farming_expenses) %>% 
+  mutate(savings = total_income - total_expenses) %>%
+  select(c(total_income, region, total_expenses, savings))
+
+filtered_data
+```
+
+The data above shows the total expenses, total savings, total income and region based on the given household. Since it is a large data set, a boxplot for each region can see the average for each the attributes. 
+
+First, a boxplot between region and total income. Before we do the plot, a log transform will be used on the total income so that it is easier to visualize some of the data
+
+```{r}
+filtered_data %>%
+  ggplot(aes(x=region, y = log(total_income))) +
+  geom_boxplot() +
+  labs(title = "Region vs Total Income", x = "region", y = "log total income") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+It is evident from the box plot above that the NCR region has the highest average total household income. While, the ARMM region has the lowest average total household income. To see these numbers, we can run the following code.
+
+```{r}
+filtered_data %>%
+  group_by(region) %>%
+  summarize(mean_income = mean(total_income))
+```
+
+From the data above, families in the NCR, on average, has a household income of 420,861.9 PHP anually, which is about \$8051.09/ year. While, familes in the ARMM region, on average, has a household income of 134,746.8 PHP anually, which is about $2577.71/year. From the box plot above and data frame above, it implies that total income has a dependancy on region. 
+
+Next, let us see if total income depends on the total expenses for a given household. Just like the analysis for total income above, the process is also similar. 
+
+```{r}
+filtered_data %>%
+  ggplot(aes(x=region, y = log(total_expenses))) +
+  geom_boxplot() +
+  labs(title = "Region vs Total Expenses", x = "region", y = "log total expenses") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+filtered_data %>%
+  group_by(region) %>%
+  summarize(mean_expenses = mean(total_expenses))
+```
+
+Just like total income, NCR has the highest average total expenses anually, 346,055.2 PHP or about $6,620.04. However, the Zasmboanga Peninsula has the lowest total expeses anually, 155,036.1 PHP or $2,965.80. The plot and data frame also implies that total expenses has an influence on the total income for a given household. 
+
+
+So far, we have only observed plots between expenditure and income based on region. In the data set, there is one more attribute that has not been analyze. That is, the number of family members. In other words, does the number of family members have an influence on the total income for a given household? Just like the two plots above, we can also use a boxplot, however we group by the number of family members, instead of region.
+
+```{r}
+new_data %>%
+  ggplot(aes(x=family_members, y=log(total_income), group=family_members)) +
+  geom_boxplot() +
+  labs(title = "Number of Family Members vs Total Income", x = "Number of Family Members", y = "log Total income ")
+
+```
+
+
+From the plot above, as the number of family members increase, the average total household income increases. This implies that there is correlation between number of family members and total income. So, we can most likely use number of family members in our regression model. 
+
+From the three plots above, it is evident that our attributes our can be used as a predictor for our regression model. Now, we can start on our regression.
+
+##Regression
+So, the column attributes might be good candidates to be in the regression model. A big problem for regression is that there can be multiple regressions and experiments must be made which regression model is better. For this section, there will be two regression models that will be looked at: a model where all the column attributes are used and a model where attributes are cut down by creating new attributes based on the old ones. 
+
+Before the regression model is created, only 10% of the data is used to evaluate the performace of the model. The function sample_frac() can get a subset of the data and group_by region was also used so that each region has a representative sample. 
+
+```{r}
+#set seed so that same data is obtained for each run
+set.seed(1234)
+#Take 10% of the data
+subset_df <- new_data %>%
+  group_by(region) %>%
+  sample_frac(.1)
+```
+
+Now that subset of the data is obtained, the lm function is used to create the regression model. Using the tidy function on the lmfit let us analyze the model a bit better. 
+
+```{r}
+#Use the lm function to create the model 
+lmfit <- lm(total_income~., data=subset_df)
+
+tidy(lmfit) %>% slice(c(10, 18, 36))
+```
+
+
+Since there was a lot of predictors to take into account, the output above is only a subset of the tidy output. However, this lets us create predictions on the total income. For example, keeping everything else constant, a family living in the NCR region will have a total income of 6116.40 PHP. Also, for every 1 PHP increase spent in bread decreases a family's total income by 0.08 PHP. This implies that bread is cheap in the Philippines. Also, as the number of family member increase, it adds about 17 PHP to the household total income.  
+
+Now that the model is created, one can see the performance by evaluating creating a violin plot for the residue created by the model.
+
+```{r,warning=FALSE}
+augment_data <- augment(lmfit)
+
+#Convert negative residues into positive
+augment_data$.resid[augment_data$.resid < 0] <- augment_data$.resid * (-1)
+
+#Plot the residue for each region
+augment_data %>%
+  ggplot(aes(x=region, y=log(.resid))) +
+  geom_violin() +
+  labs(title = "Region vs Residue", x = "Region", y = "log residue ") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+From the plot above, it looks like the residue for each region is about 22,026.47 PHP or $421.40. It is a very high residue. Another way to measure performace of linear regression model is to get the coefficient of determination. 
+
+```{r}
+summary(lmfit)$r.squared
+```
+
+In the first linear model, $R^2$ is around 79%. The coefficient of determination tells us that 79% of the data can be explained by the linear regression model. The other 21% is explained by other factors that we have not analyzed. 
+
+In the first linear model, a multiple regression model was used. The problem in a multiple regression model is that collinearity between two attributes can affect the prediction. Also, if an attribute has no correlation to the dependent variable, then it might not be worth putting that attribute to the model. For example, rice expenses for a given household has no correlation for the total income. 
+
+```{r}
+new_data %>%
+  ggplot(aes(x=log(rice_expenses), y=log(total_income))) +
+  geom_point() + 
+  labs(title = "Rice expenditure vs Total income", x = "log rice expenditure", y = "log Total income ") +
+  geom_smooth(method=lm)
+```
+
+From the plot above, it is evident that there is no correlation between rice expenditure and total income. Points in the scatterplot are spread around the regression line. This implies that a linear regression might not be the best model between rice expenditure and total income. 
+
+With the problems of multiple regression with many predictors, is it possible to do better? That is, if the predictors for the model was cut down, will we get a lower residue? The only way to answer is to create the model.
+
+So, for the second model, the same 10% of the data is used so that the same values are used. However, different sets of predictors will be used. In the Visualization part, there was a correlation between total expenses and total income, so this predictor should probably be used. But, it is also imperative that the model must not have a small set of predictors such that it will give bad predictions. So, the total expenses will broken up based on food, entertainment, and necessities.
+
+```{r}
+new_sub_df <- subset_df %>% 
+  #Get all the food expenses
+  mutate(food_expenses = bread_expenses + rice_expenses + meat_expenses + seafood_expenses + fruit_expenses + vegetable_expenses) %>%
+  #Get all the entertainment expenses
+  mutate(entertainment_expenses = restaurant_expenses + alcohol_expenses + tobacco_expenses + miscalleanous_expenses) %>%
+  #Get all the necessary expenses
+  mutate(neccesary_expenses = clothing_expenses + housing_expenses + house_value + medical_expenses + transportation_expenses + communication_expenses + education_expenses + farming_expenses) %>%
+  select(c("total_income", "region", "food_expenses", "entertainment_expenses", "neccesary_expenses", "family_members"))
+
+new_sub_df
+```
+
+The data frame above still has total income, region, and number of family members as the columns. However, there are three new columns: food_expenses, entertainment_expenses, and necessary expenses. The code above explains which columns from the old data set was added to create the new columns. 
+
+Now that the second data frame, use the lm function to create a regression model.
+
+```{r}
+lmfit2 <- lm(total_income~., data=new_sub_df)
+
+tidy(lmfit2) %>% slice(c(10, 18:21))
+```
+
+Compared to the first regression model, there are different values for some of the predictors. For example, in the first model, the total household income for a family in NCR is 6116 PHP, while in the second model it is 25,835 PHP. Also, in the first model, for every increase in a family member adds 17 PHP to the total family income, while in the second model it decreases by 7362 PHP for every family member. 
+
+Now, graph the residue for the second model vs region
+```{r}
+augment_data2 <- augment(lmfit2)
+
+augment_data2$.resid <- abs(augment_data2$.resid)
+
+augment_data2 %>%
+  ggplot(aes(x=region, y=log(.resid))) +
+  geom_violin() +
+  labs(title = "Region vs Residue", x = "Region", y = "log residue ") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+From the plot above, it looks like the residue is about 22,026.47 PHP or $421.40. This residue is the same the first model. So, it looks like from the two plots there is no discernable difference. However, by computing the coefficient of determination, it will be evident which model is better.
+
+```{r}
+summary(lmfit2)$r.squared
+```
+
+From the coefficient of determination, 74% of the data can be explained by the regression model. So, the second regression model is worse than the first one by 5%. 
+
+##Final Regression
+By comparing the two models above, the regression model where all attributes were used was by far the best model from the other model by 5%. 
+
+With that in mind, the final model can be created for the whole data set. 
+```{r}
+lmfitfinal <- lm(total_income~., data=new_data)
+
+tidy(lmfitfinal) %>% slice(c(10, 18, 36))
+```
+
+From the output above, for every increase in family members, 7 PHP is added to the total income of the given household. Also, for every 1 PHP spent on bread adds 0.5 PHP to total income. 
+
+The model can be validated by creating a scatter plot on fitted values vs residue. If the line through the plot is y = 0, then the model is a good fit.
+```{r,warning=FALSE}
+augment_final <- augment(lmfitfinal)
+
+augment_final$.resid <- abs(augment_final$.resid)
+
+augment_final %>%
+ggplot(aes(x = log(.fitted), y = log(.resid))) + geom_point() +
+  geom_smooth(method=lm) +
+   labs(title = "Residual vs Fitted", x = "log fitted", y = "log residue ") 
+```
+
+The plot above shows that the line through the points is not y = 0, but an increasing line. This implies that the lower fitted values have lower error, while higher fitted values have higher error. 
+
+```{r}
+summary(lmfitfinal)$r.squared
+```
+
+Calculating the coefficient of determination gives 0.73. This value is lower when a subset was used. This is not suprising since only 10% of the data was used, but by adding more data creates more variance with the data. So, the model can explain about 73% of the whole data. This coefficient of determination implies that a better model is needed to fit the data. 
+
+##Conclusion
+
+From this report, total household income was predicted based on several factors, such as the region where the family lives, meat expenditure, number of family members, and etc. Before creating the final model, two preliminary models were created based on 10% of the data. The model with the higher coefficient of determination was picked to be the best model to be created with the whole data. The final model ended up only explaining 73% of the whole data, while 27% of the data can be explained by several factors. The residue vs fitted values scatter plot also implied that a better model might be needed to describe the data. 
+##Resources
+kaggle.com
+wikipedia.com
